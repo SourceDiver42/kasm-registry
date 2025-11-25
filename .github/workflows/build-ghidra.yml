@@ -45,6 +45,9 @@ jobs:
     - name: Build and push for each Kasm version
       if: ${{ steps.missing.outputs.missing != '' }}
       run: |
+        mkdir -p workspaces
+        git config user.name "github-actions"
+        git config user.email "actions@github.com"
         for tag in ${{ steps.missing.outputs.missing }}; do
           version=$(./script/normalize.sh "$tag")
           folder="workspaces/Ghidra $version"
@@ -65,14 +68,9 @@ jobs:
                         -t "$image" "$folder"
 
             docker push "$image"
+            docker rmi "$image"
           done
+          git add "$folder"
+          git commit -m "Add Ghidra version $version"
+          git push
         done
-
-    - name: Commit version folders
-      if: ${{ steps.missing.outputs.missing != '' }}
-      run: |
-        git config user.name "github-actions"
-        git config user.email "actions@github.com"
-        git add workspaces/
-        git commit -m "Add new Ghidra versions"
-        git push
