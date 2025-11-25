@@ -16,6 +16,14 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Free space early
+      run: |
+        sudo rm -rf /usr/local/lib/android \
+                     /usr/share/dotnet \
+                     /opt/ghc \
+                     /opt/hostedtoolcache
+        docker system prune -af || true
+
     - name: Install tools
       run: |
         sudo apt-get update
@@ -48,11 +56,11 @@ jobs:
         mkdir -p workspaces
         git config user.name "github-actions"
         git config user.email "actions@github.com"
+
         for tag in ${{ steps.missing.outputs.missing }}; do
           version=$(./script/normalize.sh "$tag")
           folder="workspaces/Ghidra $version"
 
-          # create folder with both Dockerfiles + workspace.json
           ./script/create-version.sh "$tag"
 
           for kasm_ver in 1.17 1.18; do
@@ -62,14 +70,20 @@ jobs:
             echo "Building $dockerfile → $image"
             asset=$(./script/get-ghidra-asset.sh "$tag")
 
-            docker build -f "$dockerfile" \
-                        --build-arg GHIDRA_VERSION="$version" \
-                        --build-arg GHIDRA_FILE="$asset" \
-                        -t "$image" "$folder"
+            docker build --no-cache --force-rm \
+                         -f "$dockerfile" \
+                         --build-arg GHIDRA_VERSION="$version" \
+                         --build-arg GHIDRA_FILE="$asset" \
+                         -t "$image" "$folder"
 
             docker push "$image"
-            docker rmi "$image"
+            docker rmi "$image" || true
+
+            # Critical cleanup
+            docker builder prune -af || true
+            docker system prune -af --volumes || true
           done
+
           git add "$folder"
           git commit -m "Add Ghidra version $version"
           git push

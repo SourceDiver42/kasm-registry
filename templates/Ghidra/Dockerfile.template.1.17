@@ -41,9 +41,9 @@ ENV PATH="$JAVA_HOME/bin:${PATH}"
 # Install Ghidra
 RUN wget -O /tmp/ghidra.zip \
     "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${GHIDRA_VERSION}_build/${GHIDRA_FILE}" && \
-    unzip -q /tmp/ghidra.zip -d /opt && \
-    mv /opt/ghidra_* /opt/ghidra && \
-    rm /tmp/ghidra.zip
+    unzip -q /tmp/ghidra.zip -d /tmp/ghidra && \
+    mv /tmp/ghidra/* /opt/ghidra && \
+    rm -rf /tmp/ghidra /tmp/ghidra.zip
 
 # Force Ghidra to use JDK 21
 RUN echo "VMPath=$JAVA_HOME/bin/java" >> /opt/ghidra/support/launch.properties
