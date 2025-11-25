@@ -1,0 +1,58 @@
+ARG KASM_VERSION=1.18.0
+FROM kasmweb/core-ubuntu-noble:${KASM_VERSION}
+
+ARG GHIDRA_VERSION
+ARG GHIDRA_FILE
+
+USER root
+
+ENV HOME=/home/kasm-default-profile
+ENV STARTUPDIR=/dockerstartup
+ENV INST_SCRIPTS=$STARTUPDIR/install
+WORKDIR $HOME
+
+######### Begin Customizations ###########
+
+COPY icon.png /usr/share/icons/ghidra.png
+COPY ghidra.desktop /usr/share/applications/ghidra.desktop
+RUN chmod +x /usr/share/applications/ghidra.desktop
+
+COPY custom_startup.sh $STARTUPDIR/custom_startup.sh
+RUN chmod +x $STARTUPDIR/custom_startup.sh
+
+RUN cp /usr/share/applications/ghidra.desktop \
+       /home/kasm-default-profile/Desktop/ghidra.desktop && \
+    chmod +x /home/kasm-default-profile/Desktop/ghidra.desktop && \
+    chown 1000:1000 /home/kasm-default-profile/Desktop/ghidra.desktop
+
+# Install Temurin JDK 21
+RUN mkdir -p /etc/apt/keyrings && \
+    wget -O /etc/apt/keyrings/adoptium.asc https://packages.adoptium.net/artifactory/api/gpg/key/public && \
+    echo "deb [signed-by=/etc/apt/keyrings/adoptium.asc] https://packages.adoptium.net/artifactory/deb focal main" \
+      > /etc/apt/sources.list.d/adoptium.list
+
+RUN apt-get update && \
+    apt-get install -y wget unzip temurin-21-jdk && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_HOME=/usr/lib/jvm/temurin-21-jdk
+ENV PATH="$JAVA_HOME/bin:${PATH}"
+
+# Install Ghidra
+RUN wget -O /tmp/ghidra.zip \
+    "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${GHIDRA_VERSION}_build/${GHIDRA_FILE}" && \
+    unzip -q /tmp/ghidra.zip -d /opt && \
+    mv /opt/ghidra_* /opt/ghidra && \
+    rm /tmp/ghidra.zip
+
+# Force Ghidra to use JDK 21
+RUN echo "VMPath=$JAVA_HOME/bin/java" >> /opt/ghidra/support/launch.properties
+
+######### End Customizations ###########
+
+RUN chown -R 1000:0 /home/kasm-default-profile
+
+USER 1000
+ENV HOME=/home/kasm-user
+WORKDIR $HOME
+RUN mkdir -p $HOME && chown -R 1000:0 $HOME
