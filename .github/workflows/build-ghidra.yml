@@ -1,0 +1,78 @@
+name: Build Ghidra
+
+on:
+  schedule:
+    - cron: "0 */12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jq
+
+    - name: Find missing Ghidra versions
+      id: missing
+      run: |
+        missing=$(./script/get-missing-versions.sh | tr '\n' ' ')
+        echo "missing=$missing" >> $GITHUB_OUTPUT
+
+    - name: Stop if nothing new
+      if: ${{ steps.missing.outputs.missing == '' }}
+      run: echo "Nothing to build."
+
+    - name: Log in to GHCR
+      if: ${{ steps.missing.outputs.missing != '' }}
+      run: |
+        echo "${{ secrets.GITHUB_TOKEN }}" | \
+          docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+    - name: Normalize repo path
+      id: repo
+      run: |
+        echo "lower=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+    - name: Build and push for each Kasm version
+      if: ${{ steps.missing.outputs.missing != '' }}
+      run: |
+        for tag in ${{ steps.missing.outputs.missing }}; do
+          version=$(./script/normalize.sh "$tag")
+          folder="workspaces/Ghidra $version"
+
+          # create folder with both Dockerfiles + workspace.json
+          ./script/create-version.sh "$tag"
+
+          for kasm_ver in 1.17 1.18; do
+            dockerfile="$folder/Dockerfile.$kasm_ver"
+            image="ghcr.io/${{ steps.repo.outputs.lower }}/ghidra-${version}:${kasm_ver}"
+
+            echo "Building $dockerfile → $image"
+            asset=$(./script/get-ghidra-asset.sh "$tag")
+
+            docker build -f "$dockerfile" \
+                        --build-arg GHIDRA_VERSION="$version" \
+                        --build-arg GHIDRA_FILE="$asset" \
+                        -t "$image" "$folder"
+
+            docker push "$image"
+          done
+        done
+
+    - name: Commit version folders
+      if: ${{ steps.missing.outputs.missing != '' }}
+      run: |
+        git config user.name "github-actions"
+        git config user.email "actions@github.com"
+        git add workspaces/
+        git commit -m "Add new Ghidra versions"
+        git push

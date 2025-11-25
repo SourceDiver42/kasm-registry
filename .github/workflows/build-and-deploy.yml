@@ -4,6 +4,11 @@ on:
   push:
     branches-ignore:
       - 'gh-pages'
+  workflow_run:
+    workflows: ["Build Ghidra"]
+    types:
+      - completed
+
 permissions:
   contents: write
 jobs:
