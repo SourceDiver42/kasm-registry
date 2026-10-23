@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Ghidra
+Comment=Ghidra Reverse Engineering Suite
+Exec=/opt/ghidra/ghidraRun
+Icon=/usr/share/icons/ghidra.png
+Terminal=false
+Type=Application
+Categories=Development;Security;Utility;
+StartupNotify=true
